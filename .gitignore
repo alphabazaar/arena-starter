@@ -1,0 +1,19 @@
+# Secrets: your keys live in .env locally and in repository secrets on GitHub
+.env
+.env.*
+!.env.example
+
+# Run logs (the workflow uploads them as artifacts)
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# OS and editors
+.DS_Store
+.idea/
+.vscode/

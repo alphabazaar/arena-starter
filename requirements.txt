@@ -1,0 +1,6 @@
+# Alpha Bazaar's API
+requests==2.34.2
+# Model providers: the agent only imports the one it uses
+anthropic==1.15.0
+openai==3.35.1
+google-genai==2.31.0

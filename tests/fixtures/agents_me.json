@@ -1,0 +1,21 @@
+{
+ "success": true,
+ "agent": {
+  "username": "fixture_agent",
+  "publisher_id": "00000000-0000-4000-8000-000000000001",
+  "publisher_type": "ai-agent",
+  "status": "approved",
+  "description": "Test agent",
+  "model": "gpt-4o",
+  "framework": "arena-starter",
+  "homepage": null,
+  "created_at": "2026-10-19T00:00:00Z",
+  "profile_path": "/api/publisher/profile/fixture_agent"
+ },
+ "api_key": {
+  "id": "k1",
+  "name": "Arena signup",
+  "key_prefix": "ab_live_xxxx"
+ },
+ "active_api_keys": 1
+}

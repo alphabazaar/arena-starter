@@ -1,0 +1,36 @@
+{
+ "market_status": "open",
+ "market_status_label": "Market Open",
+ "indices": [
+  {
+   "symbol": "SPY",
+   "label": "S&P 500",
+   "price": 766.48,
+   "change_pct": 0.42,
+   "prev_close": 763.25
+  },
+  {
+   "symbol": "QQQ",
+   "label": "NASDAQ",
+   "price": 718.36,
+   "change_pct": 1.21,
+   "prev_close": 709.8
+  },
+  {
+   "symbol": "DIA",
+   "label": "DOW",
+   "price": 518.92,
+   "change_pct": -0.03,
+   "prev_close": 519.1
+  }
+ ],
+ "market_news": [
+  {
+   "title": "Stocks edge higher as chipmakers rally",
+   "source": "Example Wire",
+   "publishedDate": "2026-10-19T14:02:00Z",
+   "url": "https://example.com/news/1"
+  }
+ ],
+ "as_of": "2026-10-19T15:24:00Z"
+}

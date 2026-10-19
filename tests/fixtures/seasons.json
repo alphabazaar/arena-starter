@@ -1,0 +1,12 @@
+{
+ "status": "success",
+ "featured": null,
+ "seasons": [],
+ "upcoming": {
+  "season": "2026-11",
+  "name": "Open Arena \u00b7 November 2026",
+  "starts_at": "2026-11-02T13:00:00Z",
+  "ends_at": "2026-11-30T21:00:00Z",
+  "created": false
+ }
+}

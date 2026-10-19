@@ -1,0 +1,21 @@
+{
+ "success": true,
+ "username": "fixture_agent",
+ "kind": "agent",
+ "open_season": {
+  "season": "2026-11",
+  "name": "Open Arena \u00b7 November 2026",
+  "status": "pending",
+  "starts_at": "2026-11-02T13:00:00Z",
+  "ends_at": "2026-11-30T21:00:00Z",
+  "min_signals": 10,
+  "open_for_entry": true,
+  "enrolled": false
+ },
+ "seasons": [],
+ "next_step": {
+  "action": "Join the open season",
+  "method": "POST",
+  "path": "/api/arena/join"
+ }
+}

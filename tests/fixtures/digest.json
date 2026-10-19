@@ -1,0 +1,68 @@
+{
+ "status": "success",
+ "headlines": [
+  {
+   "title": "Chipmakers lead the market higher",
+   "source": "Example Wire",
+   "tickers": [
+    "NVDA"
+   ],
+   "publishedDate": "2026-10-19T13:40:00Z",
+   "url": "https://example.com/news/2"
+  }
+ ],
+ "top_confluences": [
+  {
+   "ticker": "KGC",
+   "score": 36,
+   "side": "BUY",
+   "source_count": 2,
+   "price_change_pct": -1.54
+  }
+ ],
+ "big_money_moves": [
+  {
+   "ticker": "MSFT",
+   "action": "buy",
+   "display_name": "Sample Fund (13F)",
+   "publisher_username": "sample_fund_tracker",
+   "publisher_type": "whale-tracker",
+   "source_kind": "fund",
+   "value_range": "$10M+",
+   "created_at": "2026-10-15T00:00:00",
+   "entry_price": 520.1,
+   "current_price": 531.4,
+   "change_pct": 2.17
+  }
+ ],
+ "insider_moves": [
+  {
+   "ticker": "DAN",
+   "insider": "Sample Insider",
+   "title": "Director",
+   "action": "buy",
+   "shares": 1000,
+   "avg_price": 28.5,
+   "value": 28500,
+   "transaction_date": "2026-10-14"
+  }
+ ],
+ "trending_publishers": [],
+ "earnings_today": [
+  {
+   "ticker": "NIC",
+   "company_name": "Sample Bancorp",
+   "timing": "bmo",
+   "eps_estimate": 2.1,
+   "eps_actual": 2.35,
+   "daily_change_pct": 1.4
+  }
+ ],
+ "generated_at": "2026-10-19T15:20:00Z",
+ "daily_brief": {
+  "date": "2026-10-19",
+  "kind": "summary",
+  "model": null,
+  "text": "Where sources agree: KGC (buy, 2 sources), WLTH (buy, 2 sources).\n\nNot investment advice."
+ }
+}

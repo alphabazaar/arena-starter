@@ -1,0 +1,236 @@
+{
+ "events": [
+  {
+   "id": "conf-kgc",
+   "ticker": "KGC",
+   "side": "BUY",
+   "score": 35.75,
+   "actionability": {
+    "label": "historical",
+    "score": 0
+   },
+   "composition": {
+    "source_count": 2,
+    "unique_types_count": 1,
+    "politician_count": 1,
+    "whale_count": 0,
+    "analyst_count": 1,
+    "publisher_count": 0,
+    "signal_freshness": "mixed"
+   },
+   "market": {
+    "current_price": 23.755,
+    "company_name": null,
+    "sector": null
+   },
+   "price_change_pct": -25.97,
+   "detected_at": "2026-09-18T13:40:04.585230",
+   "days_active": 30,
+   "sources": [
+    {
+     "source_type": "analyst",
+     "publisher": {
+      "username": "sample_analyst"
+     }
+    }
+   ],
+   "trade_context": {
+    "narrative": "KGC: sources lean buy."
+   }
+  },
+  {
+   "id": "conf-wlth",
+   "ticker": "WLTH",
+   "side": "BUY",
+   "score": 30.1,
+   "actionability": {
+    "label": "historical",
+    "score": 0
+   },
+   "composition": {
+    "source_count": 2,
+    "unique_types_count": 1,
+    "politician_count": 1,
+    "whale_count": 0,
+    "analyst_count": 1,
+    "publisher_count": 0,
+    "signal_freshness": "mixed"
+   },
+   "market": {
+    "current_price": 10.815,
+    "company_name": null,
+    "sector": null
+   },
+   "price_change_pct": 33.19,
+   "detected_at": "2026-09-18T13:40:04.585230",
+   "days_active": 30,
+   "sources": [
+    {
+     "source_type": "analyst",
+     "publisher": {
+      "username": "sample_analyst"
+     }
+    }
+   ],
+   "trade_context": {
+    "narrative": "WLTH: sources lean buy."
+   }
+  },
+  {
+   "id": "conf-nic",
+   "ticker": "NIC",
+   "side": "BUY",
+   "score": 31.7,
+   "actionability": {
+    "label": "caution",
+    "score": 50
+   },
+   "composition": {
+    "source_count": 3,
+    "unique_types_count": 2,
+    "politician_count": 1,
+    "whale_count": 0,
+    "analyst_count": 2,
+    "publisher_count": 0,
+    "signal_freshness": "mixed"
+   },
+   "market": {
+    "current_price": 162.585,
+    "company_name": null,
+    "sector": "Financial Services"
+   },
+   "price_change_pct": 9.04,
+   "detected_at": "2026-09-18T13:40:04.585230",
+   "days_active": 30,
+   "sources": [
+    {
+     "source_type": "analyst",
+     "publisher": {
+      "username": "sample_analyst"
+     }
+    }
+   ],
+   "trade_context": {
+    "narrative": "NIC: sources lean buy."
+   }
+  },
+  {
+   "id": "conf-andg",
+   "ticker": "ANDG",
+   "side": "BUY",
+   "score": 27.5,
+   "actionability": {
+    "label": "go",
+    "score": 75
+   },
+   "composition": {
+    "source_count": 3,
+    "unique_types_count": 2,
+    "politician_count": 1,
+    "whale_count": 0,
+    "analyst_count": 2,
+    "publisher_count": 0,
+    "signal_freshness": "mixed"
+   },
+   "market": {
+    "current_price": 56.91,
+    "company_name": null,
+    "sector": null
+   },
+   "price_change_pct": 179.11,
+   "detected_at": "2026-09-18T13:40:04.585230",
+   "days_active": 30,
+   "sources": [
+    {
+     "source_type": "analyst",
+     "publisher": {
+      "username": "sample_analyst"
+     }
+    }
+   ],
+   "trade_context": {
+    "narrative": "ANDG: sources lean buy."
+   }
+  },
+  {
+   "id": "conf-beat",
+   "ticker": "BEAT",
+   "side": "BUY",
+   "score": 27.0,
+   "actionability": {
+    "label": "go",
+    "score": 75
+   },
+   "composition": {
+    "source_count": 3,
+    "unique_types_count": 2,
+    "politician_count": 1,
+    "whale_count": 0,
+    "analyst_count": 2,
+    "publisher_count": 0,
+    "signal_freshness": "mixed"
+   },
+   "market": {
+    "current_price": 0.413,
+    "company_name": null,
+    "sector": null
+   },
+   "price_change_pct": 12.0,
+   "detected_at": "2026-09-18T13:40:04.585230",
+   "days_active": 30,
+   "sources": [
+    {
+     "source_type": "analyst",
+     "publisher": {
+      "username": "sample_analyst"
+     }
+    }
+   ],
+   "trade_context": {
+    "narrative": "BEAT: sources lean buy."
+   }
+  },
+  {
+   "id": "conf-tdy",
+   "ticker": "TDY",
+   "side": "SHORT",
+   "score": 30.1,
+   "actionability": {
+    "label": "go",
+    "score": 75
+   },
+   "composition": {
+    "source_count": 3,
+    "unique_types_count": 2,
+    "politician_count": 1,
+    "whale_count": 0,
+    "analyst_count": 2,
+    "publisher_count": 0,
+    "signal_freshness": "mixed"
+   },
+   "market": {
+    "current_price": 613.055,
+    "company_name": null,
+    "sector": null
+   },
+   "price_change_pct": 4.96,
+   "detected_at": "2026-09-18T13:40:04.585230",
+   "days_active": 30,
+   "sources": [
+    {
+     "source_type": "analyst",
+     "publisher": {
+      "username": "sample_analyst"
+     }
+    }
+   ],
+   "trade_context": {
+    "narrative": "TDY: sources lean short."
+   }
+  }
+ ],
+ "offset": 0,
+ "limit": 10,
+ "has_more": false,
+ "generated_at": "2026-10-19T15:20:00Z"
+}

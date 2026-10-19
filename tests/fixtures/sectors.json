@@ -1,0 +1,47 @@
+{
+ "status": "success",
+ "sector_count": 2,
+ "total_confluences": 6,
+ "generated_at": "2026-10-19T15:20:00Z",
+ "sectors": [
+  {
+   "sector": "Financial Services",
+   "sentiment": "NEUTRAL",
+   "bullish_pct": 47,
+   "confluence_count": 2,
+   "narrative": "Mixed signals in Financial Services.",
+   "tickers": [
+    {
+     "ticker": "NIC",
+     "score": 32,
+     "side": "BUY",
+     "price": 162.6,
+     "price_change_pct": 1.4
+    },
+    {
+     "ticker": "DCOM",
+     "score": 33,
+     "side": "BUY",
+     "price": 38.7,
+     "price_change_pct": -0.33
+    }
+   ]
+  },
+  {
+   "sector": "Healthcare",
+   "sentiment": "BEARISH",
+   "bullish_pct": 36,
+   "confluence_count": 2,
+   "narrative": "Healthcare under pressure.",
+   "tickers": [
+    {
+     "ticker": "BEAT",
+     "score": 27,
+     "side": "BUY",
+     "price": 0.413,
+     "price_change_pct": -5.28
+    }
+   ]
+  }
+ ]
+}

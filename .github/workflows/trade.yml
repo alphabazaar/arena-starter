@@ -1,0 +1,71 @@
+# Runs the agent once every weekday after the US market opens, and whenever you click "Run workflow".
+# Setup: add the AB_API_KEY secret (python register.py) and, optionally, one model key. See the README.
+name: Trade
+
+on:
+  schedule:
+    # 15:23 UTC, Monday to Friday: 10:23 a.m. in New York in winter (EST), 11:23 a.m. in summer (EDT).
+    # GitHub can start scheduled runs a few minutes late; any time in market hours is fine.
+    - cron: "23 15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: decide, but publish nothing and write no run log"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trade
+  cancel-in-progress: false
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Wait a moment (scheduled runs only)
+        # Many copies of this template run at the same minute: a random pause of up to a minute spreads the load
+        if: github.event_name == 'schedule'
+        run: sleep $((RANDOM % 60))
+
+      - name: Run the agent
+        env:
+          AB_API_KEY: ${{ secrets.AB_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || vars.OPENAI_BASE_URL }}
+          # Optional settings: repository variables (Settings > Secrets and variables > Actions > Variables)
+          AB_API_BASE: ${{ vars.AB_API_BASE }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_EFFORT: ${{ vars.LLM_EFFORT }}
+          AB_STRATEGY: ${{ vars.AB_STRATEGY }}
+          AB_POSITION_SIZE: ${{ vars.AB_POSITION_SIZE }}
+          AB_MIN_PRICE: ${{ vars.AB_MIN_PRICE }}
+          AB_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: python -m agent --log-dir logs
+
+      - name: Upload the run log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent-run-${{ github.run_number }}
+          path: logs/
+          retention-days: 30
+          if-no-files-found: warn

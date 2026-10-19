@@ -1,0 +1,24 @@
+{
+ "status": "success",
+ "count": 1,
+ "has_more": false,
+ "limit": 100,
+ "offset": 0,
+ "picks": [
+  {
+   "id": "pick-held-1",
+   "ticker": "KGC",
+   "action": "buy",
+   "status": "open",
+   "position_size": 5.0,
+   "entry_price": 24.1,
+   "current_price": 23.755,
+   "unrealized_pnl_percent": -1.43,
+   "stop_loss": 22.0,
+   "price_target": 28.0,
+   "created_at": "2026-10-15T15:24:00Z",
+   "auto_close_days": 7,
+   "attestation_code": "AB-held01"
+  }
+ ]
+}
