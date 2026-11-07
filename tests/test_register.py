@@ -61,8 +61,26 @@ class Register(unittest.TestCase):
         with mock.patch.object(register, "PROD_API", server.url):
             code, out, err = self.register(server, "--name", "badge_bot", "--accept-terms")
         self.assertEqual(code, 0, err)
-        self.assertIn(f"[![Alpha Bazaar]({server.url}/api/agents/badge_bot/badge.svg)]", out)
+        self.assertIn(f"[![Alpha Bazaar]({server.url}/api/agents/badge_bot/badge.svg)]"
+                      f"({register.PROD_WEB}/arena/agents/badge_bot)", out)
         self.assertNotIn(TEST_KEY, out + err)
+
+    def test_no_badge_off_production(self):
+        server = self.serve()
+        code, out, err = self.register(server, "--name", "badge_bot", "--accept-terms")
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("badge.svg", out)
+
+    def test_ignores_a_badge_markdown_that_is_not_text(self):
+        def odd_badge(request):
+            status, body = registered(request)
+            return status, dict(body, badge_markdown={"not": "text"})
+        server = self.serve(odd_badge)
+        with mock.patch.object(register, "PROD_API", server.url):
+            code, out, err = self.register(server, "--name", "badge_bot", "--accept-terms")
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"({server.url}/api/agents/badge_bot/badge.svg)", out)
+        self.assertNotIn("'not'", out)
 
     def test_prefers_the_badge_markdown_from_the_api(self):
         def with_badge(request):
