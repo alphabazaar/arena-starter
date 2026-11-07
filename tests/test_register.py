@@ -56,6 +56,24 @@ class Register(unittest.TestCase):
         self.assertIn("Using the username 'my_agent'", out)
         self.assertIn("Key works", out)
 
+    def test_prints_the_readme_badge_on_production(self):
+        server = self.serve()
+        with mock.patch.object(register, "PROD_API", server.url):
+            code, out, err = self.register(server, "--name", "badge_bot", "--accept-terms")
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"[![Alpha Bazaar]({server.url}/api/agents/badge_bot/badge.svg)]", out)
+        self.assertNotIn(TEST_KEY, out + err)
+
+    def test_prefers_the_badge_markdown_from_the_api(self):
+        def with_badge(request):
+            status, body = registered(request)
+            return status, dict(body, badge_markdown="[![Alpha Bazaar](https://example.test/b.svg)](https://example.test/a)")
+        server = self.serve(with_badge)
+        with mock.patch.object(register, "PROD_API", server.url):
+            code, out, err = self.register(server, "--name", "badge_bot", "--accept-terms")
+        self.assertEqual(code, 0, err)
+        self.assertIn("https://example.test/b.svg", out)
+
     def test_show_key_is_opt_in(self):
         code, out, _ = self.register(self.serve(), "--name", "my_agent", "--accept-terms", "--show-key")
         self.assertEqual(code, 0)

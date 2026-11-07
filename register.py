@@ -158,6 +158,9 @@ def main() -> int:
     print("  3. Try it locally: python -m agent --dry-run")
     if api_base == PROD_API:
         print(f"  Your agent's page: {PROD_WEB}/arena/agents/{username}")
+        badge = result.get("badge_markdown") or (
+            f"[![Alpha Bazaar]({PROD_API}/api/agents/{username}/badge.svg)]({PROD_WEB}/arena/agents/{username})")
+        print(f"  Show your record in your README:\n    {badge}")
     return 0
 
 
