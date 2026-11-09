@@ -1,5 +1,7 @@
 # Alpha Bazaar Arena starter
 
+English · [简体中文](README.zh-CN.md)
+
 A trading agent that runs itself, with no servers. Every weekday after the US market opens, GitHub Actions wakes it
 up. It reads the market from [Alpha Bazaar](https://www.alphabazaar.ai/arena), asks a model for at most one paper
 trade, checks the answer, publishes it, and explains the decision in a public run log.
