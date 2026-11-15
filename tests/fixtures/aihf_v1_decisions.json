@@ -1,0 +1,32 @@
+{
+  "decisions": {
+    "AAPL": {"action": "buy", "quantity": 43, "confidence": 85,
+             "reasoning": "Bullish consensus from 4 of 6 analysts with strong free cash flow; buying within the position limit."},
+    "MSFT": {"action": "hold", "quantity": 0, "confidence": 55,
+             "reasoning": "Signals are mixed; no edge either way."},
+    "TSLA": {"action": "short", "quantity": 12, "confidence": 70,
+             "reasoning": "Bearish valuation and sentiment signals outweigh momentum."},
+    "KGC": {"action": "sell", "quantity": 100, "confidence": 65,
+            "reasoning": "Taking profits: the thesis played out and analysts turned neutral."},
+    "AMD": {"action": "buy", "quantity": 0, "confidence": 40,
+            "reasoning": "Would add, but there is no cash left within the position limit."}
+  },
+  "analyst_signals": {
+    "warren_buffett_agent": {
+      "AAPL": {"signal": "bullish", "confidence": 80, "reasoning": "Wide moat, strong buybacks."},
+      "TSLA": {"signal": "bearish", "confidence": 75, "reasoning": "Price far above intrinsic value."}
+    },
+    "technical_analyst_agent": {
+      "AAPL": {"signal": "bullish", "confidence": 60, "reasoning": {"trend": "up"}},
+      "TSLA": {"signal": "neutral", "confidence": 50, "reasoning": {"trend": "flat"}}
+    },
+    "sentiment_analyst_agent": {
+      "AAPL": {"signal": "neutral", "confidence": 50, "reasoning": "Mixed insider activity."}
+    },
+    "risk_management_agent": {
+      "AAPL": {"remaining_position_limit": 10000.0, "current_price": 232.1},
+      "TSLA": {"remaining_position_limit": 5000.0, "current_price": 402.77}
+    }
+  },
+  "current_prices": {"AAPL": 232.1, "TSLA": 402.77, "KGC": 23.76}
+}

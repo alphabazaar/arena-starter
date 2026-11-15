@@ -44,6 +44,12 @@ def _require(module: str, package: str):
                             fatal=True) from None
 
 
+def model_label(model: str) -> str:
+    """A model name as your public Arena profile shows it (and groups the by-model standings)."""
+    label = re.sub(r"^[^A-Za-z0-9]+", "", _LABEL_CHARS.sub("-", model)).rstrip(" -")
+    return label[:100] or "unknown"  # AB: up to 100 characters, starting with a letter or digit
+
+
 class Provider:
     name = "provider"
 
@@ -53,8 +59,7 @@ class Provider:
     @property
     def label(self) -> str:
         """The model as your public Arena profile shows it (and groups the by-model standings)."""
-        label = re.sub(r"^[^A-Za-z0-9]+", "", _LABEL_CHARS.sub("-", self.model)).rstrip(" -")
-        return label[:100] or "unknown"  # AB: up to 100 characters, starting with a letter or digit
+        return model_label(self.model)
 
     def decide(self, system: str, user: str, context: Dict[str, Any], candidates: Dict[str, Any]) -> Any:
         raise NotImplementedError

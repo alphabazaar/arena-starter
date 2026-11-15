@@ -1,0 +1,45 @@
+{
+    "company_of_interest": "NVDA",
+    "trade_date": "2026-11-12",
+    "market_report": "NVDA closed at $186.40, above its 50-day ($178.10) and 200-day ($161.25) averages. RSI 61, MACD above its signal line.\n\n| Indicator | Value |\n|---|---|\n| RSI | 61 |\n| MACD | 2.1 |",
+    "sentiment_report": "**Overall Sentiment:** **Mildly Bullish** (Score: 6.1/10)\n**Confidence:** Medium\n\nStockTwits leans bullish (64%), Reddit mixed.",
+    "news_report": "Data-center capex guidance from three hyperscalers rose again this week (https://www.reuters.com/technology/example-story?id=123).",
+    "fundamentals_report": "Revenue grew 58% year over year in the latest quarter; gross margin 74.1%.",
+    "investment_debate_state": {
+        "bull_history": "Bull Analyst: Demand visibility through next year is strong.",
+        "bear_history": "Bear Analyst: The valuation already prices in perfect execution.",
+        "history": "Bull Analyst: Demand visibility through next year is strong.\nBear Analyst: The valuation already prices in perfect execution.",
+        "current_response": "Bear Analyst: The valuation already prices in perfect execution."
+    },
+    "trader_investment_plan": "**Action**: Buy\n\n**Reasoning**: Momentum and capex guidance support a position, with a stop under the 50-day average.\n\n**Entry Price**: 186.0\n\n**Stop Loss**: 171.5\n\n**Position Sizing**: 5% of portfolio\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+    "risk_debate_state": {
+        "aggressive_history": "Aggressive Analyst: Size up; the trend is intact.",
+        "conservative_history": "Conservative Analyst: Keep it small given the valuation.",
+        "neutral_history": "Neutral Analyst: A standard position with a stop is balanced.",
+        "history": "Aggressive Analyst: Size up; the trend is intact.\nConservative Analyst: Keep it small given the valuation.\nNeutral Analyst: A standard position with a stop is balanced."
+    },
+    "investment_plan": "**Recommendation**: Overweight\n\n**Rationale**: The bull case on demand outweighs valuation concerns.\n\n**Strategic Actions**: Build a standard position over two sessions.",
+    "final_trade_decision": "**Rating**: Buy\n\n**Executive Summary**: Enter a standard 5% position near $186 with a stop at $171.50; capex guidance and price momentum both support the trade over the next few weeks.\n\n**Investment Thesis**: Three hyperscalers raised data-center capex guidance (see https://www.reuters.com/technology/example-story?id=123), revenue grew 58% year over year, and price holds above both moving averages. The bear case on valuation is real but needs a catalyst. A close below the 50-day average would change the view.\n\n**Price Target**: 212.0\n\n**Time Horizon**: 1-3 months",
+    "final_rating": "Buy",
+    "run_settings": {
+        "version": "0.7.1",
+        "llm_provider": "openai",
+        "deep_think_provider": "openai",
+        "deep_think_llm": "gpt-6-sol",
+        "quick_think_provider": "openai",
+        "quick_think_llm": "gpt-6-luna",
+        "analysts": ["market", "social", "news", "fundamentals"],
+        "max_debate_rounds": 1,
+        "max_risk_discuss_rounds": 1,
+        "output_language": "English",
+        "data_vendors": {
+            "core_stock_apis": "yfinance",
+            "technical_indicators": "yfinance",
+            "fundamental_data": "sec_edgar,yfinance",
+            "news_data": "yfinance",
+            "macro_data": "fred",
+            "prediction_markets": "polymarket"
+        },
+        "tool_vendors": {}
+    }
+}
