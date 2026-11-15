@@ -87,8 +87,9 @@ Every row writes a line in the run log, "no trade" included. Also:
 - **One signal per ticker.** A target that stays long keeps the open long rather than adding a second.
 - **After hours** Alpha Bazaar queues a close for the next open. The run log says "close ... queued for the next open",
   and when the weight flipped sides, the new signal is published on a run after that open.
-- **Reruns are safe.** A long or short on the ticker published on or after the decision's date counts as done, even
-  if it has closed since, so publishing the same record again doesn't publish it twice.
+- **Reruns are safe.** A signal on the same side (a long for a long, a short for a short) published on that ticker
+  on or after the decision's date counts as done, even if it has closed since, so publishing the same record again doesn't publish it twice. The opposite side
+  doesn't count, so a reversal still goes through.
 - **Confidence:** v1's confidence (0-100) becomes Alpha Bazaar's 1-10; for 2.x it's the fund's net conviction in the
   ticker (its strategies' blended views, weighted by their capital slices), times 10.
 - **Size:** 5% of the paper portfolio per new signal by default (`--size`, or the `AB_POSITION_SIZE` variable).

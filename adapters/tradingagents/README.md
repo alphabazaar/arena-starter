@@ -75,8 +75,9 @@ Every row writes a line in the run log, "no trade" included. Also:
 - **One signal per ticker.** A Buy while a long is open keeps the open one rather than adding a second.
 - **After hours** Alpha Bazaar queues a close for the next open. The run log says "close ... queued for the next open",
   and a reversal (Sell with `--sell-as-short` over a long) publishes its short on a run after that open.
-- **Reruns are safe.** A long or short on the ticker published on or after the decision's date counts as done, even
-  if it has closed since, so running the same output again doesn't publish it twice.
+- **Reruns are safe.** A signal on the same side (a long for a long, a short for a short) published on that ticker
+  on or after the decision's date counts as done, even if it has closed since, so running the same output again doesn't publish it twice. The opposite side
+  doesn't count, so a reversal still goes through.
 - **Size:** 5% of the paper portfolio per new signal (`--size`, or the `AB_POSITION_SIZE` variable), capped by what's
   left of the 100% that open signals may use.
 - **Holding period:** `1W` by default, the window TradingAgents grades its own calls over (5 trading days). The signal
