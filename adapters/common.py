@@ -21,7 +21,7 @@ from agent import config
 from agent.ab import AB, ABError, redact
 from agent.config import VERSION, ConfigError
 from agent.decision import HOLD_DAYS, MIN_POSITION, REASONING_MAX, TICKER_RE, TIME_HORIZONS, size_position
-from agent.main import META_MAX_BYTES, RUN_LOG_MAX, Report
+from agent.main import RUN_LOG_MAX, Report
 
 try:
     from zoneinfo import ZoneInfo
@@ -46,6 +46,8 @@ TARGETS = (LONG, SHORT, FLAT, EXIT_LONG, EXIT_SHORT, KEEP)
 
 DEFAULT_SIZE = 5.0
 DEFAULT_MAX_AGE_DAYS = 5
+HISTORY_LIMIT = 500  # my-picks' maximum page: recent signals, open or not, so a rerun doesn't publish twice
+META_BUDGET = 1800  # bytes for the run log's meta object: Alpha Bazaar allows 2048, this leaves headroom
 SIGNAL_SUMMARY_MAX = 1200  # of a signal's 2000 characters of reasoning; the headline before it takes the rest
 LOG_SUMMARY_MAX = 600  # per ticker in the run-log entry; less when one entry covers many tickers
 LEVELS = ("stop_loss", "price_target")
@@ -116,7 +118,8 @@ class Outcome:
     intent: Intent
     closes: List[Position] = field(default_factory=list)  # open signals to close
     opens: Optional[str] = None  # buy or short: the new signal to publish once the closes are done
-    closed: List[Position] = field(default_factory=list)
+    closed: List[Position] = field(default_factory=list)  # closed at once (market hours)
+    queued: List[Position] = field(default_factory=list)  # closes Alpha Bazaar queued for the next open
     done: List[str] = field(default_factory=list)
     problems: List[str] = field(default_factory=list)  # what Alpha Bazaar refused, and what that stopped
     idle: str = ""  # why nothing was done
@@ -195,10 +198,11 @@ def horizon(value: Optional[str], default: str) -> str:
     raise ConfigError(f"--horizon must be one of {', '.join(TIME_HORIZONS)}, not {value!r}")
 
 
-def open_positions(answer: Dict[str, Any]) -> List[Position]:
+def open_positions(answer: Dict[str, Any], open_only: bool = True) -> List[Position]:
+    """The signals in a my-picks answer: the open ones, or (open_only=False) all of them, whatever their status."""
     out = []
     for pick in answer.get("picks") or []:
-        if pick.get("status") != "open":
+        if open_only and pick.get("status") != "open":
             continue
         side = "short" if str(pick.get("action") or "").lower() in ("short", "sell") else "buy"
         out.append(Position(id=str(pick.get("id")), ticker=normalize_ticker(pick.get("ticker")), side=side,
@@ -212,11 +216,11 @@ def _json_size(value: Any) -> int:
 
 
 def fit_meta(meta: Dict[str, Any], calls: Dict[str, str]) -> Dict[str, Any]:
-    """The run-log meta object within Alpha Bazaar's 2 KB, with as many of the per-ticker calls as fit."""
+    """The run-log meta object within META_BUDGET (Alpha Bazaar allows 2 KB), with as many per-ticker calls as fit."""
     meta = {key: value for key, value in meta.items() if value not in (None, "")}
     fitted: Dict[str, str] = {}
     for ticker, call in calls.items():
-        if _json_size({**meta, "calls": {**fitted, ticker: call}, "calls_truncated": True}) > META_MAX_BYTES:
+        if _json_size({**meta, "calls": {**fitted, ticker: call}, "calls_truncated": True}) > META_BUDGET:
             meta["calls_truncated"] = True
             break
         fitted[ticker] = call
@@ -277,8 +281,9 @@ def _age_problem(intent: Intent, settings: Settings, today: date) -> Optional[st
     return None
 
 
-def plan(intent: Intent, held: Sequence[Position], settings: Settings, today: date) -> Outcome:
-    """What to do for one intent, given the ticker's open signals."""
+def plan(intent: Intent, held: Sequence[Position], settings: Settings, today: date,
+         history: Sequence[Position] = ()) -> Outcome:
+    """What to do for one intent, given the ticker's open signals and its recent ones (open or not)."""
     outcome = Outcome(intent)
     if not TICKER_RE.match(intent.ticker):
         outcome.idle = f"{intent.ticker!r} isn't a ticker symbol Alpha Bazaar takes (1-10 letters, digits, . or -)"
@@ -301,6 +306,13 @@ def plan(intent: Intent, held: Sequence[Position], settings: Settings, today: da
         outcome.closes = longs
     elif target == EXIT_SHORT:
         outcome.closes = shorts
+    if outcome.opens and intent.as_of:  # a rerun of the same output: the signal was published, and maybe closed since
+        before = [p for p in history if p.side == outcome.opens and p.opened and p.opened >= intent.as_of[:10]]
+        if before:
+            outcome.closes, outcome.opens = [], None
+            outcome.idle = (f"a {SIDE[before[0].side]} was already published on {before[0].opened}, on or after this "
+                            f"decision's date ({intent.as_of[:10]}), so it isn't published again")
+            return outcome
     if not outcome.closes and not outcome.opens:
         stays = "; ".join(f"the open {SIDE[p.side]} from {p.opened or 'earlier'} stays open" for p in longs + shorts)
         why = "" if target in (LONG, SHORT) else intent.why
@@ -399,6 +411,7 @@ def publish(intents: Sequence[Intent], settings: Settings, cfg: config.Config, r
                f"{'DRY RUN, nothing will be sent' if dry else 'live'}")
 
     held = open_positions(ab.get(PICKS, auth=True, status="open", limit=100)) if cfg.api_key else []
+    history = open_positions(ab.get(PICKS, auth=True, limit=HISTORY_LIMIT), open_only=False) if cfg.api_key else []
     portfolio = {"open_signals": len(held), "allocated_pct": round(sum(p.size for p in held), 2)}
     if cfg.api_key:
         report.say(f"Open signals: {portfolio['open_signals']} · {portfolio['allocated_pct']:g}% of the paper "
@@ -410,7 +423,11 @@ def publish(intents: Sequence[Intent], settings: Settings, cfg: config.Config, r
     by_ticker: Dict[str, List[Position]] = {}
     for position in held:
         by_ticker.setdefault(position.ticker, []).append(position)
-    outcomes = [plan(intent, by_ticker.get(intent.ticker, []), settings, today) for intent in _dedupe(intents)]
+    past: Dict[str, List[Position]] = {}
+    for position in history:
+        past.setdefault(position.ticker, []).append(position)
+    outcomes = [plan(intent, by_ticker.get(intent.ticker, []), settings, today, past.get(intent.ticker, []))
+                for intent in _dedupe(intents)]
     if not outcomes and not notes:  # nothing decided: write nothing, not even the profile's labels
         report.say("Nothing to publish: the output had no decisions in it.")
         return 1 if failures else 0
@@ -429,7 +446,8 @@ def publish(intents: Sequence[Intent], settings: Settings, cfg: config.Config, r
             except ABError as e:
                 report.warn(f"couldn't update the profile's labels: {e}")
 
-    # 2. Close what the framework left. A close during market hours also frees room for new signals.
+    # 2. Close what the framework left. During market hours a close is done at once and frees room for new signals;
+    #    after hours Alpha Bazaar queues it for the next open, and the position stays open (and counted) until then.
     for outcome in outcomes:
         for position in outcome.closes:
             what = f"the open {SIDE[position.side]} (opened {position.opened or 'earlier'})"
@@ -437,6 +455,10 @@ def publish(intents: Sequence[Intent], settings: Settings, cfg: config.Config, r
             path = CLOSE.format(id=position.id)
             if dry:
                 _show(report, "POST", path)
+                if outcome.opens:
+                    report.say(f"  (After hours the close is queued for the next open, and the new "
+                               f"{SIDE[outcome.opens]} waits for a run after it.)")
+                immediate = True  # what a dry run shows: the market-hours case
             else:
                 try:
                     answer = ab.post(path)
@@ -447,20 +469,27 @@ def publish(intents: Sequence[Intent], settings: Settings, cfg: config.Config, r
                     continue
                 immediate = "immediate" in str(answer.get("action") or "")
                 price = number(answer.get("exit_price"))
-                report.say(f"  Closed signal {position.id}" + (f" at ${price:.2f}" if immediate and price else
-                                                                ": it exits at the next market open"))
-                if immediate:  # a close queued for the next open counts against the limits until then
+                report.say(f"  Closed signal {position.id}" + (f" at ${price:.2f}" if price else "") if immediate
+                           else f"  Close of signal {position.id} queued: it exits at the next market open")
+            if immediate:
+                if not dry:
                     portfolio["open_signals"] -= 1
                     portfolio["allocated_pct"] = round(max(portfolio["allocated_pct"] - position.size, 0.0), 2)
-            outcome.closed.append(position)
-            outcome.done.append(f"closed {what}")
+                outcome.closed.append(position)
+                outcome.done.append(f"closed {what}")
+            else:
+                outcome.queued.append(position)
+                outcome.done.append(f"close of {what} queued for the next open")
 
     # 3. Open what it asked for, strongest conviction first (room and the weekly limit can run out)
     blocked: Optional[str] = None
     for outcome in sorted((o for o in outcomes if o.opens), key=lambda o: -(o.intent.confidence or 0)):
         intent, side = outcome.intent, SIDE[outcome.opens]
-        if len(outcome.closed) < len(outcome.closes):
+        if len(outcome.closed) + len(outcome.queued) < len(outcome.closes):
             outcome.problems.append(f"so no {side} was published (one position per ticker)")
+            continue
+        if outcome.queued:  # the old side stays open until the next open: publishing now would hold both overnight
+            outcome.done.append(f"run again after it to publish the {side}")
             continue
         if blocked:
             outcome.problems.append(f"wanted a {side}, but {blocked}")
@@ -518,6 +547,7 @@ def publish(intents: Sequence[Intent], settings: Settings, cfg: config.Config, r
         "framework_version": settings.framework_version, "model": settings.model,
         "as_of": max((o.intent.as_of[:10] for o in outcomes if o.intent.as_of), default=None),
         "published": sum(1 for o in outcomes if o.body), "closed": sum(len(o.closed) for o in outcomes),
+        "close_queued": sum(len(o.queued) for o in outcomes),
         "rejected": rejected,
     }, {o.intent.ticker[:12]: o.intent.call[:24] for o in outcomes if o.intent.call})
     entry_body = {"kind": "decision", "content": run_log_text(outcomes, settings, notes), "ticker": single,

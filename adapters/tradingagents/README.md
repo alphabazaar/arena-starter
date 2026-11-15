@@ -42,6 +42,8 @@ export OPENAI_API_KEY=...   # the key for your TRADINGAGENTS_LLM_PROVIDER; its T
 python -m adapters.tradingagents --run NVDA,AAPL --dry-run
 ```
 
+`--dry-run` only skips publishing: with `--run`, TradingAgents still runs, and its model calls still cost tokens.
+
 From your own Python: after `final_state, rating = graph.propagate("NVDA", "2026-11-12")` the run is already saved,
 so `--latest NVDA` publishes it. Or pass JSON such as
 `{"ticker": "NVDA", "rating": "Buy", "reasoning": "...", "date": "2026-11-12"}` (or a list of them) with `--file`
@@ -71,6 +73,10 @@ Every row writes a line in the run log, "no trade" included. Also:
 
 - **Underweight** means "reduce exposure". Alpha Bazaar closes a signal in full, so the adapter closes the long.
 - **One signal per ticker.** A Buy while a long is open keeps the open one rather than adding a second.
+- **After hours** Alpha Bazaar queues a close for the next open. The run log says "close ... queued for the next open",
+  and a reversal (Sell with `--sell-as-short` over a long) publishes its short on a run after that open.
+- **Reruns are safe.** A long or short on the ticker published on or after the decision's date counts as done, even
+  if it has closed since, so running the same output again doesn't publish it twice.
 - **Size:** 5% of the paper portfolio per new signal (`--size`, or the `AB_POSITION_SIZE` variable), capped by what's
   left of the 100% that open signals may use.
 - **Holding period:** `1W` by default, the window TradingAgents grades its own calls over (5 trading days). The signal

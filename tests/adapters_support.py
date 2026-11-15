@@ -27,6 +27,17 @@ def closed_ok(price: float = 23.81):
                  "exit_price": price, "market_status": "open", "close_reason": "manual_intraday"}
 
 
+def close_queued():
+    """After hours Alpha Bazaar doesn't close at once: it queues the exit for the next open."""
+    return 200, {"status": "success", "action": "sell_at_open", "message": "Close queued for the next market open",
+                 "market_status": "closed"}
+
+
+def picks_by_status(open_picks, all_picks):
+    """A my-picks route: the open signals for ?status=open, every recent signal without it."""
+    return lambda request: (200, open_picks if request["query"].get("status") == ["open"] else all_picks)
+
+
 def would_send(output: str):
     """Every (method, path, body) a dry run printed as "Would send: METHOD PATH" with its JSON body below."""
     found, decoder = [], json.JSONDecoder()

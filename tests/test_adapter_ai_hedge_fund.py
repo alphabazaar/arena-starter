@@ -9,7 +9,7 @@ from unittest import mock
 
 from adapters.ai_hedge_fund import adapter as aihf
 from adapters.common import EXIT_LONG, EXIT_SHORT, FLAT, KEEP, LONG, SHORT, AdapterError
-from tests.adapters_support import CLOSE_HELD, LOG, ME, SUBMIT, AdapterCase, closed_ok, would_send
+from tests.adapters_support import CLOSE_HELD, LOG, ME, SUBMIT, AdapterCase, close_queued, closed_ok, would_send
 from tests.fakes import fixture
 
 RECORD = "aihf_session_record.json"  # what `aihf paper tick` prints and keeps in the ledger (2.7.2)
@@ -187,6 +187,17 @@ class Publishing(AdapterCase):
         self.assertIn("TSLA: was skipped by the fund → no trade: ai-hedge-fund skipped it", content)
         self.assertNotIn("KGC", content)
         self.assert_no_key_anywhere(output)
+
+    def test_after_hours_a_flipped_weight_waits_for_the_queued_close(self):
+        aapl = {"id": "pick-aapl", "ticker": "AAPL", "action": "buy", "status": "open", "position_size": 5.0,
+                "created_at": "2026-11-04T15:00:00Z"}
+        server = self.serve(picks=self.picks_with(aapl))
+        server.routes[("POST", "/api/performance/close-signal/pick-aapl")] = close_queued()
+        code, output = self.run_adapter(server, "--file", self.write(RECORD))
+        self.assertEqual(code, 0, output)
+        self.assertEqual([r["body"]["ticker"] for r in server.calls("POST", SUBMIT)], ["NVDA"])  # no AAPL short yet
+        self.assertIn("AAPL: target -5.0% of NAV → close of the open long (opened 2026-11-04) queued for the next "
+                      "open; run again after it to publish the short.", self.log_entry(server)["content"])
 
     def test_size_from_fund_uses_its_weights(self):
         server = self.serve()

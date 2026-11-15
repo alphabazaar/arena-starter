@@ -8,7 +8,8 @@ from unittest import mock
 
 from adapters.common import EXIT_LONG, KEEP, LONG, SHORT, AdapterError
 from adapters.tradingagents import adapter as ta
-from tests.adapters_support import CLOSE_HELD, LOG, ME, SUBMIT, AdapterCase, closed_ok, would_send
+from tests.adapters_support import (CLOSE_HELD, LOG, ME, SUBMIT, AdapterCase, close_queued, closed_ok,
+                                    picks_by_status, would_send)
 from tests.fakes import TEST_KEY, fixture
 
 STATE = "tradingagents_state_log.json"  # what TradingAgents v0.7.1 saves as full_states_log_<date>.json
@@ -143,7 +144,7 @@ class Publishing(AdapterCase):
         dry = self.serve()
         code, output = self.run_adapter(dry, "--file", self.write(STATE), "--dry-run")
         self.assertEqual(code, 0, output)
-        self.assertEqual([r["method"] for r in dry.requests], ["GET", "GET"])  # its profile and open signals only
+        self.assertEqual([r["method"] for r in dry.requests], ["GET"] * 3)  # profile, open and recent signals only
         self.assertIn("Dry run: nothing was sent", output)
         shown = {(method, path): body for method, path, body in would_send(output)}
 
@@ -201,6 +202,35 @@ class Publishing(AdapterCase):
         self.assertEqual(code, 0, output)
         self.assertEqual([r["path"] for r in server.requests if r["method"] == "POST"], [CLOSE_HELD[1], SUBMIT, LOG])
         self.assertEqual(server.calls("POST", SUBMIT)[0]["body"]["action"], "short")
+
+    def test_after_hours_a_reversal_waits_for_the_queued_close(self):
+        server = self.serve()
+        server.routes[CLOSE_HELD] = close_queued()
+        code, output = self.run_adapter(server, "--ticker", "KGC", "--rating", "Sell", "--sell-as-short")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(len(server.calls(*CLOSE_HELD)), 1)
+        self.assertEqual(server.calls("POST", SUBMIT), [])  # no short while the long is still open overnight
+        entry = self.log_entry(server)
+        self.assertIn("KGC: rated Sell (published as a short: --sell-as-short) → close of the open long (opened "
+                      "2026-10-15) queued for the next open; run again after it to publish the short.", entry["content"])
+        self.assertNotIn("closed the open long", entry["content"])
+        self.assertEqual((entry["meta"]["closed"], entry["meta"]["close_queued"]), (0, 1))
+
+    def test_rerunning_the_same_output_does_not_publish_it_again(self):
+        open_picks = fixture("my_picks.json")
+        for side, expected in (("buy", 0), ("short", 1)):  # a closed long from that day counts; a short doesn't
+            with self.subTest(side=side):
+                recent = fixture("my_picks.json")
+                recent["picks"].append({"id": "pick-nvda", "ticker": "NVDA", "action": side, "status": "closed",
+                                        "position_size": 5.0, "created_at": "2026-11-12T15:31:00Z"})
+                server = self.serve(picks=picks_by_status(open_picks, recent))
+                code, output = self.run_adapter(server, "--file", self.write(STATE))
+                self.assertEqual(code, 0, output)
+                self.assertEqual(len(server.calls("POST", SUBMIT)), expected)
+                if not expected:
+                    self.assertIn("NVDA: rated Buy → no trade: a long was already published on 2026-11-12, on or "
+                                  "after this decision's date (2026-11-12), so it isn't published again.",
+                                  self.log_entry(server)["content"])
 
     def test_buy_keeps_the_open_long(self):
         server = self.serve()
