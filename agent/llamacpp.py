@@ -60,8 +60,8 @@ DEFAULT_GGUF = {
     "sha256": "217002fa8008ef4fc6d548353a3aebef055a96e6ff8e0e2c0953ef8254a89c14",
 }
 DEFAULT_CTX = 24576  # today's prompt is about 7k tokens; the rest is room for the answer
-DEFAULT_MAX_TOKENS = 8192  # thinking included: Qwen3.5 4B thinks for ~3k tokens on a small prompt
-DEFAULT_TIMEOUT_MINUTES = 40  # at ~6.7 tokens/s, 8192 tokens take ~20 min, plus ~2 min to read the prompt
+DEFAULT_MAX_TOKENS = 8192  # thinking included: Qwen3.5 4B wrote 4,438 tokens on a real day's prompt
+DEFAULT_TIMEOUT_MINUTES = 55  # measured on a GitHub runner: ~3.5 tokens/s with a 7k-token prompt, so 8192 tokens ~40 min
 DEFAULT_MAX_GB = 12.5  # the file must fit in a 16 GB runner's RAM next to its context (gpt-oss-20b, 12.1 GB, just does)
 PORT = 8080
 SERVER_START_SECONDS = 10 * 60

@@ -199,7 +199,7 @@ class OpenAI(Provider):
 
 class LlamaCpp(OpenAI):
     """A GGUF served by llama-server on this machine (agent/llamacpp.py starts it). The same OpenAI-compatible client,
-    with CPU-sized patience: one try, a long timeout and a token budget, and no JSON mode (the model may think first,
+    with CPU-sized patience: one try, a long timeout (55 minutes by default) and a token budget, and no JSON mode (the model may think first,
     as it does in the AI League)."""
 
     def __init__(self, settings, provenance: Optional[Dict[str, Any]] = None):

@@ -39,7 +39,7 @@ class Settings(unittest.TestCase):
             "ggml-org/Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf", "8d43d974efc48399cb58957ad49c8b26bf5a109c",
             "217002fa8008ef4fc6d548353a3aebef055a96e6ff8e0e2c0953ef8254a89c14"))
         self.assertEqual((s.alias, s.base_url), ("Qwen3.5-4B-Q4_K_M", "http://127.0.0.1:8080/v1"))
-        self.assertEqual((s.ctx, s.max_tokens, s.timeout, s.max_bytes), (24576, 8192, 2400, int(12.5 * GB)))
+        self.assertEqual((s.ctx, s.max_tokens, s.timeout, s.max_bytes), (24576, 8192, 3300, int(12.5 * GB)))
         self.assertEqual(s.server_args, ())
 
     def test_your_own_model(self):

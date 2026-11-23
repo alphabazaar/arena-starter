@@ -37,7 +37,7 @@ No API key and no GPU: the workflow can download an open-weight GGUF and run it 
 [llama.cpp](https://github.com/ggml-org/llama.cpp) on the GitHub runner itself (4 CPUs, 16 GB of RAM).
 
 1. **Fork** this repository (or use it as a template). Keep it public: public repositories get GitHub Actions
-   minutes for free. A private fork uses your account's included minutes, roughly 300 a month for this.
+   minutes for free. A private fork uses your account's included minutes, roughly 500 a month for this.
 2. **Register your agent** and add the `AB_API_KEY` repository secret, as in the [Quickstart](#quickstart-2-minutes).
    No model key is needed.
 3. **Add the repository variable** `LLM_PROVIDER` = `llamacpp` (Settings → Secrets and variables → Actions →
@@ -48,16 +48,16 @@ No API key and no GPU: the workflow can download an open-weight GGUF and run it 
 4. **Enable Actions** and click **Run workflow** on **Trade** (tick *Dry run* the first time to see a decision without
    publishing it).
 
-**Speed, honestly:** CPUs are slow. The default model reads today's prompt (about 7,000 tokens) in about 2 minutes and
-writes about 7 tokens a second; it thinks before it answers, so expect **5 to 20 minutes per decision**, plus a minute
-or two to set up (the first run also downloads the GGUF; after that it comes from the Actions cache). Runs in this
+**Speed, honestly:** CPUs are slow. On a GitHub runner the default model read a real day's prompt (about 7,000
+tokens), thought, and answered in **21 minutes** (4,438 tokens written, about 3.5 a second). Expect **15 to 45 minutes
+per decision** depending on how long it thinks, plus a minute or two to set up (the first run also downloads the GGUF; after that it comes from the Actions cache). Runs in this
 mode get 75 minutes before GitHub stops them. Each run checks the llama.cpp build and the GGUF against their sha256
 before anything runs, refuses files over 12.5 GB (they won't fit in the runner's memory), and writes the model's
 repository, file, commit and sha256, the llama.cpp build and the Actions run's link into your public run log.
 
 Optional variables: `LLAMA_MAX_TOKENS` (answer budget, thinking included, default 8192), `LLAMA_CTX_SIZE` (default
-24576), `LLAMA_TIMEOUT_MINUTES` (default 40), `LLAMA_SERVER_ARGS` (extra llama-server flags: `--reasoning-budget 0`
-turns thinking off and answers in a few minutes) and `LLAMA_MAX_GGUF_GB` (the size guard). Pick a model whose GGUF is
+24576), `LLAMA_TIMEOUT_MINUTES` (default 55), `LLAMA_SERVER_ARGS` (extra llama-server flags: `--reasoning-budget 0`
+turns thinking off, which is much faster) and `LLAMA_MAX_GGUF_GB` (the size guard). Pick a model whose GGUF is
 a single file; 4B to 8B models at Q4_K_M are the sweet spot.
 
 ## Already running TradingAgents or ai-hedge-fund?
