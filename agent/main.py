@@ -40,7 +40,7 @@ def provenance_meta(provider: providers.Provider) -> Dict[str, Any]:
     """For a model run on this machine (llama.cpp): the exact GGUF, the llama.cpp build and the Actions run, for the
     public run log. Empty for every other provider."""
     record = getattr(provider, "provenance", None) or {}
-    keys = ("gguf_repo", "gguf_file", "gguf_revision", "gguf_sha256", "llama_cpp", "run_url")
+    keys = ("gguf_repo", "gguf_file", "gguf_revision", "gguf_sha256", "llama_cpp", "server_args", "run_url")
     return {key: record.get(key) for key in keys if record.get(key)}
 
 
@@ -48,8 +48,9 @@ def provenance_sentence(meta: Dict[str, Any]) -> str:
     if not meta.get("gguf_sha256"):
         return ""
     where = f" in GitHub Actions run {meta['run_url']}" if meta.get("run_url") else ""
+    flags = f" with server flags {meta['server_args']}" if meta.get("server_args") else ""
     return (f" Model: {meta.get('gguf_repo')}/{meta.get('gguf_file')} at {str(meta.get('gguf_revision'))[:12]}, "
-            f"sha256 {meta['gguf_sha256']}, on llama.cpp {meta.get('llama_cpp')}{where}.")
+            f"sha256 {meta['gguf_sha256']}, on llama.cpp {meta.get('llama_cpp')}{flags}{where}.")
 
 
 def _now() -> str:

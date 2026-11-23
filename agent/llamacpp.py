@@ -14,7 +14,7 @@ Settings (repository variables; all optional: with none set, the League's Qwen3.
   LLAMA_GGUF_REVISION                  a commit (best) or a branch/tag, default main; the run log names the commit
   LLAMA_GGUF_SHA256                    the file's sha256; without it the run prints the sha256 it computed
   LLAMA_CTX_SIZE, LLAMA_MAX_TOKENS     context window and answer budget (thinking included)
-  LLAMA_TIMEOUT_MINUTES                how long one answer may take
+  LLAMA_TIMEOUT_MINUTES                how long one answer may take: default 55, at most 65 (the job has 75)
   LLAMA_SERVER_ARGS                    extra llama-server flags, such as --reasoning-budget 0
   LLAMA_MAX_GGUF_GB                    the size guard, default 12.5 (a GitHub runner has 16 GB of RAM)
 
@@ -61,6 +61,7 @@ DEFAULT_GGUF = {
 }
 DEFAULT_CTX = 24576  # today's prompt is about 7k tokens; the rest is room for the answer
 DEFAULT_MAX_TOKENS = 8192  # thinking included: Qwen3.5 4B wrote 4,438 tokens on a real day's prompt
+MAX_TIMEOUT_MINUTES = 65  # trade.yml gives llama.cpp jobs 75 minutes; ~10 go to setup, loading and the run log
 DEFAULT_TIMEOUT_MINUTES = 55  # measured on a GitHub runner: ~3.5 tokens/s with a 7k-token prompt, so 8192 tokens ~40 min
 DEFAULT_MAX_GB = 12.5  # the file must fit in a 16 GB runner's RAM next to its context (gpt-oss-20b, 12.1 GB, just does)
 PORT = 8080
@@ -78,9 +79,12 @@ _FILE = re.compile(r"^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\.gguf$")
 _SPLIT = re.compile(r"-\d{5}-of-\d{5}\.gguf$")
 _REVISION = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 _SERVER_ARG = re.compile(r"^[-A-Za-z0-9_.=:,]+$")
-# Flags the starter sets itself: the model file (only the checked one runs), where it listens, and its name
-_RESERVED_ARGS = {"-m", "--model", "-mu", "--model-url", "-hf", "-hfr", "--hf-repo", "-hff", "--hf-file", "--host",
-                  "--port", "-a", "--alias", "--api-key", "--api-key-file", "-c", "--ctx-size"}
+# Flags the starter sets itself (the model file: only the checked one runs; where it listens; its name; one slot), and
+# every flag that would make llama-server download something itself, unchecked (llama.cpp b12387's arg list)
+_RESERVED_ARGS = {"-m", "--model", "-mu", "--model-url", "-hf", "-hfr", "--hf-repo", "-hff", "--hf-file", "-hft",
+                  "--hf-token", "--spec-draft-hf", "-hfd", "-hfrd", "--hf-repo-draft", "-hfv", "-hfrv", "--hf-repo-v",
+                  "-hffv", "--hf-file-v", "-mmu", "--mmproj-url", "--models-dir", "--models-preset", "--host",
+                  "--port", "-a", "--alias", "--api-key", "--api-key-file", "-c", "--ctx-size", "-np", "--parallel"}
 
 
 class LlamaError(ConfigError):
@@ -154,7 +158,8 @@ def settings() -> Settings:
         repo=repo, file=file, revision=revision, sha256=sha256,
         ctx=int(env_number("LLAMA_CTX_SIZE", DEFAULT_CTX, 2048, 262144)),
         max_tokens=int(env_number("LLAMA_MAX_TOKENS", DEFAULT_MAX_TOKENS, 256, 65536)),
-        timeout=env_number("LLAMA_TIMEOUT_MINUTES", DEFAULT_TIMEOUT_MINUTES, 1, 300) * 60,
+        # Capped below the job's limit, so GitHub never stops the job mid-answer: a timeout still writes the run log
+        timeout=env_number("LLAMA_TIMEOUT_MINUTES", DEFAULT_TIMEOUT_MINUTES, 1, MAX_TIMEOUT_MINUTES) * 60,
         port=int(env_number("LLAMA_PORT", PORT, 1024, 65535)),
         server_args=server_args,
         max_bytes=int(env_number("LLAMA_MAX_GGUF_GB", DEFAULT_MAX_GB, 0.1, 1024) * GB),
@@ -526,11 +531,13 @@ def machine_words() -> str:
 
 def provenance(plan: Plan, gguf_sha256: str, build: Optional[str], environ: Mapping[str, str] = os.environ
                ) -> Dict[str, Any]:
-    """What ran, for the public run log: the exact file, the llama.cpp build and the Actions run."""
+    """What ran, for the public run log: the exact file, the llama.cpp build, the extra server flags (a LoRA, an
+    override or a control vector changes the model's behaviour) and the Actions run."""
     llama = plan.llama_cpp
     return {"gguf_repo": plan.repo, "gguf_file": plan.file, "gguf_revision": plan.commit, "gguf_sha256": gguf_sha256,
             "gguf_size": plan.size, "llama_cpp": build or f"{llama['tag']}-{llama['commit'][:9]}",
-            "llama_cpp_sha256": llama["sha256"], "machine": machine_words(), "run_url": run_url(environ)}
+            "llama_cpp_sha256": llama["sha256"], "server_args": " ".join(plan.server_args),
+            "machine": machine_words(), "run_url": run_url(environ)}
 
 
 def start(plan: Plan, out: Callable[[str], None] = print, popen=subprocess.Popen, get=http_get,
@@ -557,7 +564,14 @@ def start(plan: Plan, out: Callable[[str], None] = print, popen=subprocess.Popen
         out("llama-server's last lines:")
         for line in tail(log_path):
             out(f"  {line}")
+        if process.poll() is not None:
+            process.wait()  # it already exited: reap it, so stop() sees it's gone
         stop(plan.dir, out=lambda _: None)
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
         raise
     build = build_info(base, get)
     record = provenance(plan, gguf_sha256, build)

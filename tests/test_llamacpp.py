@@ -75,6 +75,12 @@ class Settings(unittest.TestCase):
             ({"LLAMA_SERVER_ARGS": "--port 9999"}, "can't set --port"),
             ({"LLAMA_SERVER_ARGS": "--host=0.0.0.0"}, "can't set --host"),
             ({"LLAMA_SERVER_ARGS": "-hf org/other"}, "can't set -hf"),
+            ({"LLAMA_SERVER_ARGS": "-hfd org/draft"}, "can't set -hfd"),
+            ({"LLAMA_SERVER_ARGS": "--hf-repo-draft=draft"}, "can't set --hf-repo-draft"),
+            ({"LLAMA_SERVER_ARGS": "-hft hf_x"}, "can't set -hft"),
+            ({"LLAMA_SERVER_ARGS": "--mmproj-url https://x/y.gguf"}, "can't set --mmproj-url"),
+            ({"LLAMA_SERVER_ARGS": "-np 4"}, "can't set -np"),
+            ({"LLAMA_TIMEOUT_MINUTES": "70"}, "LLAMA_TIMEOUT_MINUTES must be from 1 to 65"),
             ({"LLAMA_SERVER_ARGS": "--x $(rm)"}, "plain values"),
             ({"LLAMA_MAX_TOKENS": "lots"}, "LLAMA_MAX_TOKENS must be a number"),
             ({"LLAMA_CTX_SIZE": "100"}, "LLAMA_CTX_SIZE must be from"),
@@ -295,6 +301,15 @@ class FakeProcess:
         self.pid = 4242
         self.polls = 0
         self.exit_after = exit_after
+        self.waited = 0
+        self.killed = False
+
+    def wait(self, timeout=None):
+        self.waited += 1
+        return 1
+
+    def kill(self):
+        self.killed = True
 
     def poll(self):
         self.polls += 1
@@ -387,19 +402,45 @@ class StartStop(unittest.TestCase):
                          {"gguf_repo": "org/repo", "gguf_file": "m.gguf", "gguf_revision": COMMIT,
                           "gguf_sha256": sha(self.weights), "llama_cpp": "b12387-a956a852c",
                           "run_url": "https://github.com/me/my-agent/actions/runs/99"})
+        self.assertEqual(record["server_args"], "--reasoning-budget 0")
         self.assertEqual(json.loads((self.dir / "provenance.json").read_text()), record)
 
     def test_a_server_that_dies_shows_its_log_and_fails(self):
         (self.dir / "llama-server.log").write_text("")
         out = []
 
+        process = FakeProcess(exit_after=0)
+
         def popen(command, stdout, **kwargs):
             stdout.write(b"error: failed to load model\n")
-            return FakeProcess(exit_after=0)
+            return process
         with env(), mock.patch.object(llamacpp, "stop") as stop, self.assertRaisesRegex(LlamaError, "exit code 1"):
             llamacpp.start(self.plan, out=out.append, popen=popen, get=lambda url, timeout: (None, None))
         self.assertIn("  error: failed to load model", out)
         stop.assert_called_once()
+        self.assertGreaterEqual(process.waited, 1)  # reaped, no zombie left behind
+
+    def test_a_server_that_never_gets_ready_is_stopped_and_reaped(self):
+        process = FakeProcess()
+        with env(), mock.patch.object(llamacpp, "stop") as stop, \
+                self.assertRaisesRegex(LlamaError, "wasn't ready"):
+            llamacpp.start(self.plan, out=lambda line: None, popen=self.popen(process),
+                           get=lambda url, timeout: (503, None), timeout=0)
+        stop.assert_called_once()
+        self.assertEqual(process.waited, 1)
+
+    def test_a_stale_stamp_means_hashing_again(self):
+        gguf = self.dir / "models" / "m.gguf"
+        stamp = self.dir / "models" / "m.gguf.sha256"
+        stamp.write_text(f"1:2 {sha(self.weights)}\n")  # another size and time: the file changed since
+        self.assertEqual(llamacpp.verify_once(self.plan), sha(self.weights))
+        self.assertTrue(stamp.read_text().startswith(f"{gguf.stat().st_size}:"))
+        stat = gguf.stat()
+        stamp.write_text(f"{stat.st_size}:{stat.st_mtime_ns} {SHA_A}\n")  # right file, but not the expected sha256
+        self.assertEqual(llamacpp.verify_once(self.plan), sha(self.weights))
+        gguf.write_bytes(b"swapped weights!")
+        with self.assertRaisesRegex(LlamaError, "sha256 mismatch"):
+            llamacpp.verify_once(self.plan)
 
     def test_refuses_a_file_that_changed_since_it_was_checked(self):
         (self.dir / "models" / "m.gguf").write_bytes(b"swapped")
@@ -541,6 +582,7 @@ class WholeRun(unittest.TestCase):
             "gguf_revision": "8d43d974efc48399cb58957ad49c8b26bf5a109c",
             "gguf_sha256": "217002fa8008ef4fc6d548353a3aebef055a96e6ff8e0e2c0953ef8254a89c14",
             "llama_cpp": "b12387-a956a852c", "run_url": "https://github.com/me/agent/actions/runs/99",
+            "server_args": "--reasoning-budget 0",
             "machine": "ubuntu 24.04, 4 vCPU, 15.6 GiB"}))
 
     def run_agent(self, *args):
@@ -566,7 +608,8 @@ class WholeRun(unittest.TestCase):
         self.assertLessEqual(len(json.dumps(meta).encode()), 2048)
         self.assertTrue(entry["body"]["content"].endswith(
             "sha256 217002fa8008ef4fc6d548353a3aebef055a96e6ff8e0e2c0953ef8254a89c14, on llama.cpp b12387-a956a852c "
-            "in GitHub Actions run https://github.com/me/agent/actions/runs/99."))
+            "with server flags --reasoning-budget 0 in GitHub Actions run https://github.com/me/agent/actions/runs/99."))
+        self.assertEqual(meta["server_args"], "--reasoning-budget 0")
         self.assertEqual(self.ab.calls("PATCH", "/api/agents/me")[0]["body"], {"model": "Qwen3.5-4B-Q4_K_M"})
         self.assertIn("The model answered in", output)
         self.assertIn("7012 prompt tokens, 2950 written", output)
