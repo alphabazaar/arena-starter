@@ -36,6 +36,23 @@ def _market_line(ctx: Dict[str, Any]) -> str:
     return " · ".join([f"market {str(market.get('status', 'unknown')).replace('_', ' ')}", *moves])
 
 
+def provenance_meta(provider: providers.Provider) -> Dict[str, Any]:
+    """For a model run on this machine (llama.cpp): the exact GGUF, the llama.cpp build and the Actions run, for the
+    public run log. Empty for every other provider."""
+    record = getattr(provider, "provenance", None) or {}
+    keys = ("gguf_repo", "gguf_file", "gguf_revision", "gguf_sha256", "llama_cpp", "server_args", "run_url")
+    return {key: record.get(key) for key in keys if record.get(key)}
+
+
+def provenance_sentence(meta: Dict[str, Any]) -> str:
+    if not meta.get("gguf_sha256"):
+        return ""
+    where = f" in GitHub Actions run {meta['run_url']}" if meta.get("run_url") else ""
+    flags = f" with server flags {meta['server_args']}" if meta.get("server_args") else ""
+    return (f" Model: {meta.get('gguf_repo')}/{meta.get('gguf_file')} at {str(meta.get('gguf_revision'))[:12]}, "
+            f"sha256 {meta['gguf_sha256']}, on llama.cpp {meta.get('llama_cpp')}{flags}{where}.")
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -134,6 +151,9 @@ def run(cfg: config.Config, provider: providers.Provider, report: Report) -> int
     rec = report.record
     host = urlsplit(cfg.api_base).netloc
     rec.update({"api_base": cfg.api_base, "dry_run": cfg.dry_run, "provider": provider.name, "model": provider.label})
+    provenance = provenance_meta(provider)
+    if provenance:
+        rec["llamacpp"] = provenance
     if not cfg.api_key and not cfg.dry_run:
         raise ConfigError("AB_API_KEY isn't set. Register once with `python register.py --name <agent>` and save the "
                           "key as the AB_API_KEY repository secret, or try the agent first with --dry-run.")
@@ -144,6 +164,10 @@ def run(cfg: config.Config, provider: providers.Provider, report: Report) -> int
     report.say(f"Alpha Bazaar Arena starter agent {VERSION} (paper trading only, not investment advice)")
     report.say(f"{name or 'Not registered yet'} on {host} · model: {provider.label} · "
                f"{'DRY RUN, nothing will be published' if cfg.dry_run else 'live'}")
+    if provenance:
+        report.say(f"Model file: {provenance.get('gguf_repo')}/{provenance.get('gguf_file')} at "
+                   f"{str(provenance.get('gguf_revision'))[:12]} · sha256 {provenance.get('gguf_sha256')} · "
+                   f"llama.cpp {provenance.get('llama_cpp')}")
 
     # 1. Read the market
     ctx = context.gather(ab, authed=bool(cfg.api_key))
@@ -160,7 +184,8 @@ def run(cfg: config.Config, provider: providers.Provider, report: Report) -> int
     problem: Optional[Tuple[str, str]] = None  # (code, explanation): no trade, for a reason other than choice
     exit_code = 0
     report.say("Applying the momentum rules..." if provider.name == "rules"
-               else f"Asking {provider.label} for one decision...")
+               else f"Asking {provider.label} for one decision (on this machine's CPU: this takes minutes)..."
+               if provider.name == "llamacpp" else f"Asking {provider.label} for one decision...")
     reply: Any = None
     try:
         reply = provider.decide(prompt.system_prompt(name or "an Arena agent", cfg.strategy),
@@ -171,6 +196,12 @@ def run(cfg: config.Config, provider: providers.Provider, report: Report) -> int
         exit_code = 1 if e.fatal else 0
     except InvalidDecision as e:
         problem = ("invalid_answer", f"the model's answer didn't pass validation: {e}")
+    if getattr(provider, "seconds", None) is not None:
+        stats = getattr(provider, "stats", None) or {}
+        tokens = (f" · {stats['prompt_tokens']} prompt tokens, {stats['completion_tokens']} written"
+                  if stats.get("prompt_tokens") and stats.get("completion_tokens") else "")
+        report.say(f"  The model answered in {provider.seconds / 60:.1f} min{tokens}")
+        rec["model_seconds"] = provider.seconds
     if reply is not None:
         rec["model_reply"] = redact(reply if isinstance(reply, str) else json.dumps(reply))[:8000]
 
@@ -210,6 +241,9 @@ def run(cfg: config.Config, provider: providers.Provider, report: Report) -> int
         report.summary += ["### Alpha Bazaar agent (dry run)",
                            f"**Decision:** {decision.summary() if decision and not problem else 'no trade'}",
                            f"> {decision.reasoning if decision else problem[1]}"]
+        if provenance:
+            report.summary.append(f"Model file: `{provenance.get('gguf_repo')}/{provenance.get('gguf_file')}` · "
+                                  f"sha256 `{provenance.get('gguf_sha256')}` · llama.cpp `{provenance.get('llama_cpp')}`")
         return exit_code
 
     # 3. Keep the public profile's model label true to what's running (the Arena groups agents by model)
@@ -261,6 +295,9 @@ def run(cfg: config.Config, provider: providers.Provider, report: Report) -> int
         text = f"No trade today: {_sentence(problem[1])} Context: {_market_line(ctx)}."
     else:
         text = f"No trade today. {decision.reasoning} Context: {_market_line(ctx)}."
+    sentence = provenance_sentence(provenance)
+    if sentence:  # kept whole: the reasoning gives way if the entry would run over AB's limit
+        text = text[: RUN_LOG_MAX - len(sentence)].rstrip() + sentence
     meta = _meta({
         "agent": f"{FRAMEWORK}/{VERSION}", "provider": provider.name, "model": provider.label,
         "action": decision.action if decision else "none", "reason": problem[0] if problem else None,
@@ -269,6 +306,7 @@ def run(cfg: config.Config, provider: providers.Provider, report: Report) -> int
         "confidence": decision.confidence if signal else None,
         "stop_loss": (signal or {}).get("stop_loss"), "price_target": (signal or {}).get("price_target"),
         "market": (ctx.get("market") or {}).get("status"), "tradable_tickers": len(tradable),
+        **provenance,
     })
     ticker = decision.ticker if decision and decision.is_trade else None
     try:

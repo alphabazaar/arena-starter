@@ -2,6 +2,7 @@
 
   ANTHROPIC_API_KEY -> Anthropic (Claude), default model claude-opus-5-5
   OPENAI_BASE_URL   -> Ollama or any OpenAI-compatible server (set LLM_MODEL too)
+  LLM_PROVIDER=llamacpp -> a GGUF served by llama.cpp on the machine itself (agent/llamacpp.py): free on GitHub's runners
   OPENAI_API_KEY    -> OpenAI, default model gpt-6.1-sol
   GEMINI_API_KEY    -> Google Gemini (works on the free tier), default model gemini-3.8-flash
   none of them      -> the deterministic rules in rules.py: free, no model at all
@@ -120,21 +121,29 @@ class OpenAI(Provider):
     """OpenAI, or any server that speaks its Chat Completions API: Ollama, LM Studio, vLLM, Groq and more."""
 
     def __init__(self, model: str, api_key: Optional[str] = None, base_url: Optional[str] = None,
-                 effort: Optional[str] = None):
+                 effort: Optional[str] = None, *, timeout: float = TIMEOUT, retries: int = RETRIES,
+                 max_tokens: Optional[int] = None, json_mode: bool = True):
         super().__init__(model)
         self.api_key = api_key
         self.compatible = bool(base_url) and base_url.rstrip("/") != OPENAI_URL
         self.base_url = base_url.rstrip("/") if base_url else OPENAI_URL
         self.effort = effort
         self.name = "openai-compatible" if self.compatible else "openai"
+        self.timeout = timeout
+        self.retries = retries
+        self.max_tokens = max_tokens
+        self.json_mode = json_mode  # False: ask in plain text only (the reply's JSON is found by decision.parse_json)
+        self.stats: Dict[str, Any] = {}  # the last answer's token counts
 
     def decide(self, system, user, context=None, candidates=None):
         openai = _require("openai", "openai")
         # Ollama and most local servers ignore the key, but the client needs one
-        client = openai.OpenAI(api_key=self.api_key or "not-needed", base_url=self.base_url, max_retries=RETRIES,
-                               timeout=TIMEOUT)
+        client = openai.OpenAI(api_key=self.api_key or "not-needed", base_url=self.base_url,
+                               max_retries=self.retries, timeout=self.timeout)
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-        if self.compatible:
+        if not self.json_mode:
+            formats = [None]
+        elif self.compatible:
             formats = [{"type": "json_object"}, None]
         else:
             formats = [{"type": "json_schema", "json_schema": {"name": "trade_decision", "strict": True,
@@ -144,6 +153,8 @@ class OpenAI(Provider):
             request: Dict[str, Any] = {"model": self.model, "messages": messages}
             if response_format:
                 request["response_format"] = response_format
+            if self.max_tokens:
+                request["max_tokens"] = self.max_tokens
             if self.effort and not self.compatible:
                 request["reasoning_effort"] = self.effort
             try:
@@ -164,6 +175,8 @@ class OpenAI(Provider):
                 raise ProviderError(f"{where} is rate limiting this key (429)") from None
             except openai.APIStatusError as e:
                 raise ProviderError(f"{where} API error {e.status_code}") from None
+            except openai.APITimeoutError:
+                raise ProviderError(f"{where} didn't answer within {self.timeout / 60:.0f} minutes") from None
             except openai.APIConnectionError as e:
                 hint = " Is the server running and reachable from here?" if self.compatible else ""
                 raise ProviderError(f"couldn't reach {where} ({type(e).__name__}).{hint}") from None
@@ -175,9 +188,34 @@ class OpenAI(Provider):
             if refusal:
                 raise ProviderError(f"the model declined: {refusal[:200]}")
             if choice.finish_reason == "length":
-                raise ProviderError("the model's answer was cut off (finish_reason length)")
+                budget = f" at {self.max_tokens} tokens" if self.max_tokens else ""
+                raise ProviderError(f"the model's answer was cut off{budget} (finish_reason length)")
+            usage = getattr(completion, "usage", None)
+            self.stats = {"prompt_tokens": getattr(usage, "prompt_tokens", None),
+                          "completion_tokens": getattr(usage, "completion_tokens", None)}
             return choice.message.content or ""
         raise ProviderError(f"{where} rejected every request format")  # not reached: the last format raises
+
+
+class LlamaCpp(OpenAI):
+    """A GGUF served by llama-server on this machine (agent/llamacpp.py starts it). The same OpenAI-compatible client,
+    with CPU-sized patience: one try, a long timeout (55 minutes by default) and a token budget, and no JSON mode (the model may think first,
+    as it does in the AI League)."""
+
+    def __init__(self, settings, provenance: Optional[Dict[str, Any]] = None):
+        super().__init__(settings.alias, None, base_url=settings.base_url, timeout=settings.timeout, retries=0,
+                         max_tokens=settings.max_tokens, json_mode=False)
+        self.name = "llamacpp"
+        self.settings = settings
+        self.provenance = provenance
+        self.seconds: Optional[float] = None  # how long the last answer took
+
+    def decide(self, system, user, context=None, candidates=None):
+        started = time.monotonic()
+        try:
+            return super().decide(system, user, context, candidates)
+        finally:
+            self.seconds = round(time.monotonic() - started, 1)
 
 
 class Gemini(Provider):
@@ -240,7 +278,8 @@ class Rules(Provider):
 
 
 _ALIASES = {"claude": "anthropic", "google": "gemini", "ollama": "openai-compatible", "compatible": "openai-compatible",
-            "local": "openai-compatible", "none": "rules", "no-llm": "rules"}
+            "local": "openai-compatible", "none": "rules", "no-llm": "rules", "llama.cpp": "llamacpp",
+            "llama-cpp": "llamacpp", "llama": "llamacpp", "gguf": "llamacpp"}
 
 
 def choose() -> Provider:
@@ -273,6 +312,9 @@ def choose() -> Provider:
         if not gemini_key:
             raise ConfigError("LLM_PROVIDER is gemini, but GEMINI_API_KEY isn't set")
         return Gemini(model or DEFAULT_MODELS["gemini"], gemini_key)
+    if name == "llamacpp":
+        from agent import llamacpp
+        return LlamaCpp(llamacpp.settings(), llamacpp.load_provenance(env("LLAMA_PROVENANCE")))
     if name == "rules":
         return Rules()
-    raise ConfigError(f"LLM_PROVIDER must be anthropic, openai, ollama, gemini or rules, not {forced!r}")
+    raise ConfigError(f"LLM_PROVIDER must be anthropic, openai, ollama, gemini, llamacpp or rules, not {forced!r}")
