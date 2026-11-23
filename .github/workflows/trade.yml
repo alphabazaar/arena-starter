@@ -1,5 +1,7 @@
 # Runs the agent once every weekday after the US market opens, and whenever you click "Run workflow".
 # Setup: add the AB_API_KEY secret (python register.py) and, optionally, one model key. See the README.
+# No model key at all? Set the repository variable LLM_PROVIDER to llamacpp: an open-weight GGUF then runs on this
+# runner's CPU with llama.cpp (agent/llamacpp.py), free in a public repository. The steps marked "llama.cpp" do that.
 name: Trade
 
 on:
@@ -13,6 +15,10 @@ on:
         description: "Dry run: decide, but publish nothing and write no run log"
         type: boolean
         default: false
+      llamacpp:
+        description: "Run an open model on this runner with llama.cpp, for this run (same as LLM_PROVIDER=llamacpp)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,7 +30,20 @@ concurrency:
 jobs:
   trade:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A CPU answers in minutes, not seconds: llama.cpp runs get more time (agent/llamacpp.py's timeouts fit in it)
+    timeout-minutes: ${{ (inputs.llamacpp || contains(fromJSON('["llamacpp","llama.cpp","llama-cpp","llama","gguf"]'), vars.LLM_PROVIDER)) && 75 || 15 }}
+    env:
+      LLAMACPP: ${{ (inputs.llamacpp || contains(fromJSON('["llamacpp","llama.cpp","llama-cpp","llama","gguf"]'), vars.LLM_PROVIDER)) && 'true' || 'false' }}
+      # llama.cpp settings (repository variables, all optional: with none set, the AI League's Qwen3.5 4B runs)
+      LLAMA_GGUF_REPO: ${{ vars.LLAMA_GGUF_REPO }}
+      LLAMA_GGUF_FILE: ${{ vars.LLAMA_GGUF_FILE }}
+      LLAMA_GGUF_REVISION: ${{ vars.LLAMA_GGUF_REVISION }}
+      LLAMA_GGUF_SHA256: ${{ vars.LLAMA_GGUF_SHA256 }}
+      LLAMA_CTX_SIZE: ${{ vars.LLAMA_CTX_SIZE }}
+      LLAMA_MAX_TOKENS: ${{ vars.LLAMA_MAX_TOKENS }}
+      LLAMA_TIMEOUT_MINUTES: ${{ vars.LLAMA_TIMEOUT_MINUTES }}
+      LLAMA_SERVER_ARGS: ${{ vars.LLAMA_SERVER_ARGS }}
+      LLAMA_MAX_GGUF_GB: ${{ vars.LLAMA_MAX_GGUF_GB }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,6 +56,57 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: "llama.cpp: settings, size guard and cache keys"
+        id: llama
+        if: env.LLAMACPP == 'true'
+        run: |
+          # /mnt is the runner's big scratch disk; the runner's temp folder is the fallback
+          sudo mkdir -p /mnt/llamacpp && sudo chown "$(id -u):$(id -g)" /mnt/llamacpp || true
+          python -m agent.llamacpp plan --dirs /mnt/llamacpp "$RUNNER_TEMP/llamacpp"
+
+      - name: "llama.cpp: the pinned build from the cache"
+        id: llama-build-cache
+        if: env.LLAMACPP == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.llama.outputs.llama_path }}
+          key: ${{ steps.llama.outputs.llama_key }}
+
+      - name: "llama.cpp: the GGUF from the cache (keyed by its sha256)"
+        id: gguf-cache
+        if: env.LLAMACPP == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.llama.outputs.gguf_path }}
+          key: ${{ steps.llama.outputs.gguf_key }}
+
+      - name: "llama.cpp: download what the cache lacked, check every sha256"
+        if: env.LLAMACPP == 'true'
+        env:
+          LLAMA_DIR: ${{ steps.llama.outputs.dir }}
+        run: python -m agent.llamacpp fetch
+
+      - name: "llama.cpp: save the build to the cache"
+        if: env.LLAMACPP == 'true' && steps.llama-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.llama.outputs.llama_path }}
+          key: ${{ steps.llama.outputs.llama_key }}
+
+      - name: "llama.cpp: save the GGUF to the cache"
+        if: env.LLAMACPP == 'true' && steps.gguf-cache.outputs.cache-hit != 'true'
+        continue-on-error: true  # a full cache (10 GB per repository) only means downloading again tomorrow
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.llama.outputs.gguf_path }}
+          key: ${{ steps.llama.outputs.gguf_key }}
+
+      - name: "llama.cpp: start llama-server on 127.0.0.1 and wait until it's ready"
+        if: env.LLAMACPP == 'true'
+        env:
+          LLAMA_DIR: ${{ steps.llama.outputs.dir }}
+        run: python -m agent.llamacpp start
 
       - name: Wait a moment (scheduled runs only)
         # Many copies of this template run at the same minute: a random pause of up to a minute spreads the load
@@ -52,7 +122,8 @@ jobs:
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || vars.OPENAI_BASE_URL }}
           # Optional settings: repository variables (Settings > Secrets and variables > Actions > Variables)
           AB_API_BASE: ${{ vars.AB_API_BASE }}
-          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+          LLM_PROVIDER: ${{ env.LLAMACPP == 'true' && 'llamacpp' || vars.LLM_PROVIDER }}
+          LLAMA_PROVENANCE: ${{ steps.llama.outputs.provenance }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
           LLM_EFFORT: ${{ vars.LLM_EFFORT }}
           AB_STRATEGY: ${{ vars.AB_STRATEGY }}
@@ -60,6 +131,12 @@ jobs:
           AB_MIN_PRICE: ${{ vars.AB_MIN_PRICE }}
           AB_DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: python -m agent --log-dir logs
+
+      - name: "llama.cpp: stop llama-server"
+        if: always() && env.LLAMACPP == 'true' && steps.llama.outputs.dir != ''
+        env:
+          LLAMA_DIR: ${{ steps.llama.outputs.dir }}
+        run: python -m agent.llamacpp stop
 
       - name: Upload the run log
         if: always()

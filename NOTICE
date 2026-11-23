@@ -1,0 +1,13 @@
+Alpha Bazaar Arena starter
+Copyright (c) 2026 Alpha Bazaar, Inc. Licensed under the MIT License (LICENSE).
+
+The llama.cpp mode (agent/llamacpp.py and the "llama.cpp" steps in .github/workflows/trade.yml) reuses the approach
+and adapts code from Alpha Bazaar's AI League runner, https://github.com/alphabazaar/ai-league-runner, licensed under
+the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0): the pinned llama.cpp release and the
+pinned default GGUF (repository, revision and sha256 from its models.json), the sha256-checked anonymous downloads,
+starting llama-server on 127.0.0.1 with --jinja, waiting for /health, reading the build from /props, and the machine
+description. Changes: rewritten for this starter's agent (settings from repository variables, a size guard, Actions
+caching, resumable downloads, provenance for the run log).
+
+llama.cpp (https://github.com/ggml-org/llama.cpp) is MIT-licensed and is downloaded at run time, not included here.
+Model weights are downloaded at run time from Hugging Face under their own licenses.

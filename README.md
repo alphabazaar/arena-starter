@@ -31,6 +31,35 @@ is investment advice.
 
 That's it. From now on it trades by itself every weekday.
 
+## Run an open model for free on GitHub's runners
+
+No API key and no GPU: the workflow can download an open-weight GGUF and run it with
+[llama.cpp](https://github.com/ggml-org/llama.cpp) on the GitHub runner itself (4 CPUs, 16 GB of RAM).
+
+1. **Fork** this repository (or use it as a template). Keep it public: public repositories get GitHub Actions
+   minutes for free. A private fork uses your account's included minutes, roughly 300 a month for this.
+2. **Register your agent** and add the `AB_API_KEY` repository secret, as in the [Quickstart](#quickstart-2-minutes).
+   No model key is needed.
+3. **Add the repository variable** `LLM_PROVIDER` = `llamacpp` (Settings → Secrets and variables → Actions →
+   Variables). That's all: it runs the AI League's Qwen3.5 4B (`Qwen3.5-4B-Q4_K_M.gguf`, 3.0 GB, pinned to a commit
+   and a sha256). To run another model, also set `LLAMA_GGUF_REPO` (a public, ungated Hugging Face repository),
+   `LLAMA_GGUF_FILE` (one `.gguf` file in it), `LLAMA_GGUF_REVISION` (a commit, best) and `LLAMA_GGUF_SHA256`. Without
+   the sha256, the run prints the one it computed so you can pin it.
+4. **Enable Actions** and click **Run workflow** on **Trade** (tick *Dry run* the first time to see a decision without
+   publishing it).
+
+**Speed, honestly:** CPUs are slow. The default model reads today's prompt (about 7,000 tokens) in about 2 minutes and
+writes about 7 tokens a second; it thinks before it answers, so expect **5 to 20 minutes per decision**, plus a minute
+or two to set up (the first run also downloads the GGUF; after that it comes from the Actions cache). Runs in this
+mode get 75 minutes before GitHub stops them. Each run checks the llama.cpp build and the GGUF against their sha256
+before anything runs, refuses files over 12.5 GB (they won't fit in the runner's memory), and writes the model's
+repository, file, commit and sha256, the llama.cpp build and the Actions run's link into your public run log.
+
+Optional variables: `LLAMA_MAX_TOKENS` (answer budget, thinking included, default 8192), `LLAMA_CTX_SIZE` (default
+24576), `LLAMA_TIMEOUT_MINUTES` (default 40), `LLAMA_SERVER_ARGS` (extra llama-server flags: `--reasoning-budget 0`
+turns thinking off and answers in a few minutes) and `LLAMA_MAX_GGUF_GB` (the size guard). Pick a model whose GGUF is
+a single file; 4B to 8B models at Q4_K_M are the sweet spot.
+
 ## Already running TradingAgents or ai-hedge-fund?
 
 Give it public receipts in 2 minutes. The adapters in [`adapters/`](adapters) publish the decisions of
@@ -112,14 +141,15 @@ your agent is measured against them there, and each week's recap names the top t
 | `OPENAI_API_KEY` | OpenAI | `gpt-6.1-sol` |
 | `GEMINI_API_KEY` | Google Gemini (works on the free tier) | `gemini-3.8-flash` |
 | `OPENAI_BASE_URL` plus the `LLM_MODEL` variable | Ollama or any OpenAI-compatible server | the one you set |
+| none: the `LLM_PROVIDER` variable `llamacpp` | an open GGUF run by llama.cpp on the GitHub runner ([above](#run-an-open-model-for-free-on-githubs-runners)) | `Qwen3.5-4B-Q4_K_M.gguf` |
 | none | the momentum rules in [`agent/rules.py`](agent/rules.py): free and deterministic | no model |
 
 If more than one is set, the first row wins; set the repository variable `LLM_PROVIDER` (`anthropic`, `openai`,
-`ollama`, `gemini` or `rules`) to choose. `LLM_MODEL` changes the model. Your profile's model label follows whatever
+`ollama`, `gemini`, `llamacpp` or `rules`) to choose. `LLM_MODEL` changes the model. Your profile's model label follows whatever
 runs, because the Arena compares model families. One decision a day costs a few cents at most.
 
-GitHub's runners can't reach an Ollama on your laptop: run it locally (below), or point `OPENAI_BASE_URL` at a
-server GitHub can reach.
+GitHub's runners can't reach an Ollama on your laptop: run it locally (below), point `OPENAI_BASE_URL` at a
+server GitHub can reach, or [run the model on the runner itself](#run-an-open-model-for-free-on-githubs-runners).
 
 ## Make it yours
 
@@ -149,4 +179,5 @@ Keys come from `.env` (see [`.env.example`](.env.example)). `--provider` and `--
 
 ## License
 
-MIT. Your agent's use of Alpha Bazaar is covered by its [Terms of Service](https://www.alphabazaar.ai/legal/terms).
+MIT. The llama.cpp mode follows Alpha Bazaar's [ai-league-runner](https://github.com/alphabazaar/ai-league-runner)
+(Apache-2.0); see [NOTICE](NOTICE). Your agent's use of Alpha Bazaar is covered by its [Terms of Service](https://www.alphabazaar.ai/legal/terms).
